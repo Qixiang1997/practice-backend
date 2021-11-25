@@ -1,0 +1,109 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '2.3.5.RELEASE'
+    id "org.flywaydb.flyway" version "6.5.5"
+    id 'nu.studer.jooq' version '5.1.1'
+}
+
+group = 'com.qi'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // Jooq
+    implementation 'org.jooq:jooq:3.15.2'
+    implementation group: 'mysql', name: 'mysql-connector-java', version: '8.0.25'
+//    runtime "mysql:mysql-connector-java:8.0.25"
+    jooqGenerator 'mysql:mysql-connector-java:8.0.25'
+
+    // redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis:2.5.4'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+flyway {
+    def props = new Properties()
+    file("${env}.properties").withInputStream { props.load(it) }
+    dependencies {
+        compile group: 'mysql', name: 'mysql-connector-java', version: '8.0.15'
+        runtime "mysql:mysql-connector-java:8.0.15"
+    }
+    url = 'jdbc:mysql://' + props.get("db.host") + ':3306/practice_quiz?useSSL=false'
+    user = props.get("db.user")
+    password = props.get("db.password")
+    schemas = ['practice_quiz']
+}
+
+
+jooq {
+    def props = new Properties()
+    file("${env}.properties").withInputStream { props.load(it) }
+
+    configurations {
+        main {  // name of the jOOQ configuration
+
+            generationTool {
+                logging = org.jooq.meta.jaxb.Logging.WARN
+                jdbc {
+                    driver = 'com.mysql.cj.jdbc.Driver'
+                    url = "jdbc:mysql://" + props.get("db.host") + ":3306/practice_quiz?useSSL=false"
+                    user = props.get("db.user")
+                    password = props.get("db.password")
+                    properties {
+                        property {
+                            key = 'ssl'
+                            value = 'true'
+                        }
+                    }
+                }
+                generator {
+                    name = 'org.jooq.codegen.DefaultGenerator'
+                    database {
+                        name = 'org.jooq.meta.mysql.MySQLDatabase'
+                        inputSchema = 'practice_quiz'
+                        forcedTypes {
+                            forcedType {
+                                name = 'varchar'
+                                includeExpression = '.*'
+                                includeTypes = 'JSONB?'
+                            }
+                            forcedType {
+                                name = 'varchar'
+                                includeExpression = '.*'
+                                includeTypes = 'INET'
+                            }
+                        }
+                    }
+                    generate {
+                        deprecated = false
+                        records = true
+                        immutablePojos = true
+                        fluentSetters = true
+                    }
+                    target {
+                        packageName = 'com.highlight.quiz.repository.db'
+                        directory = "$projectDir/src/main/java/generated/"
+                    }
+                    strategy.name = 'org.jooq.codegen.DefaultGeneratorStrategy'
+                }
+            }
+        }
+    }
+}
+
+idea {
+    module {
+        sourceDirs += file("src/main/java/generated")
+        generatedSourceDirs += file("src/main/java/generated")
+    }
+}
